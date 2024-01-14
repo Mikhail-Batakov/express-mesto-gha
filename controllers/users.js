@@ -57,12 +57,10 @@ const createUser = (req, res) => {
     })
     .catch((err) => {
       if (err.name === 'ValidationError') {
-        res.status(400).send((`Переданы некорректные данные: ${err.message}`));
+        res.status(400).send({ message: err.message });
       } else {
         res.status(500).send({
           message: 'На сервере произошла ошибка',
-          err: err.message,
-          stack: err.stack,
         });
       }
     });
