@@ -80,8 +80,10 @@ const updateProfile = (req, res) => {
         if (err.name === 'ValidationError') {
           res.status(400).send({ message: err.message });
         } else {
-          res.status(404).send({
-            message: 'Пользователь по данному id не найден',
+          res.status(500).send({
+            message: 'На сервере произошла ошибка',
+            err: err.message,
+            stack: err.stack,
           });
         }
       });
@@ -104,8 +106,10 @@ const updateAvatar = (req, res) => {
         if (err.name === 'ValidationError') {
           res.status(400).send({ message: err.message });
         } else {
-          res.status(404).send({
-            message: 'Пользователь по данному id не найден',
+          res.status(500).send({
+            message: 'На сервере произошла ошибка',
+            err: err.message,
+            stack: err.stack,
           });
         }
       });
@@ -115,6 +119,7 @@ const updateAvatar = (req, res) => {
     });
   }
 };
+
 
 module.exports = {
   getUsers,
