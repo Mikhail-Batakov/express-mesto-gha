@@ -1,23 +1,23 @@
 const mongoose = require('mongoose');
+const {
+  StatusCodes,
+} = require('http-status-codes');
 const cardModel = require('../models/card');
 
-const getCards = (req, res) => {
+const BadRequestError = require('../errors/BadRequestError');
+const NotFoundError = require('../errors/NotFoundError');
+
+const getCards = (req, res, next) => {
   cardModel
     .find({})
     .populate(['owner', 'likes'])
     .then((cards) => {
-      res.send(cards);
+      res.status(StatusCodes.OK).send(cards);
     })
-    .catch((err) => {
-      res.status(500).send({
-        message: 'На сервере произошла ошибка',
-        err: err.message,
-        stack: err.stack,
-      });
-    });
+    .catch(next);
 };
 
-const createCard = (req, res) => {
+const createCard = (req, res, next) => {
   cardModel
     .create({
       owner: req.user._id,
@@ -27,128 +27,97 @@ const createCard = (req, res) => {
       // Используйте findById для поиска созданной карточки и затем выполните populate
       cardModel
         .findById(card._id)
+        .orFail()
         .populate('owner')
         .then((data) => {
-          res.status(201).send(data);
+          res.status(StatusCodes.CREATED).send(data);
         })
-        .catch(() => {
-          // Если карточка с указанным id не найдена, отправьте статус 404
-          res.status(404).send({
-            message: 'Карточка по данному id не найдена',
-          });
+        .catch((err) => {
+          if (err instanceof mongoose.Error.DocumentNotFoundError) {
+            next(new NotFoundError('Карточка по указанному id не найдена'));
+          } else {
+            next(err);
+          }
         });
     })
     .catch((err) => {
-      // Обработка ошибок при создании карточки
-      if (err.name === 'ValidationError') {
-        res.status(400).send({ message: err.message });
+      if (err instanceof mongoose.Error.ValidationError) {
+        next(new BadRequestError(`Отправлены некорректные данные при создании карточки: ${err.name}`));
       } else {
-        res.status(500).send({
-          message: 'На сервере произошла ошибка',
-          err: err.message,
-          stack: err.stack,
-        });
+        next(err);
       }
     });
 };
 
 // eslint-disable-next-line consistent-return
-const delCardById = (req, res) => {
+const delCardById = (req, res, next) => {
   const { cardId } = req.params;
-  // Проверка на корректность формата идентификатора карточки
-  if (!mongoose.isValidObjectId(cardId)) {
-    return res.status(400).send({
-      message: 'Неверный формат id карточки',
-    });
-  }
   cardModel
     .findByIdAndDelete(cardId)
-    .then((card) => {
-      if (!card) {
-        // Если карточка с заданным идентификатором не найдена
-        return res.status(404).send({
-          message: 'Карточка по данному id не найдена',
-        });
-      }
-
-      // Возвращаем сообщение об успешном удалении
-      return res.send({
+    .orFail()
+    .then(() => {
+      res.status(StatusCodes.OK).send({
         message: 'Карточка успешно удалена',
       });
     })
     .catch((err) => {
-      // Обработка ошибок
-      res.status(500).send({
-        message: 'На сервере произошла ошибка',
-        err: err.message,
-        stack: err.stack,
-      });
+      if (err instanceof mongoose.Error.CastError) {
+        next(new BadRequestError('Неверный формат id карточки'));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Карточка по указанному id не найдена'));
+      } else {
+        next(err);
+      }
     });
 };
 
 // eslint-disable-next-line consistent-return
-const likeCard = (req, res) => {
+const likeCard = (req, res, next) => {
   const { cardId } = req.params;
-  // Проверка на корректность формата идентификатора карточки
-  if (!mongoose.isValidObjectId(cardId)) {
-    return res.status(400).send({
-      message: 'Неверный формат id карточки',
-    });
-  }
   cardModel
     .findByIdAndUpdate(
       cardId,
       { $addToSet: { likes: req.user._id } }, // добавить _id в массив, если его там нет
       { new: true },
     )
+    .orFail()
     .populate(['owner', 'likes'])
     .then((card) => {
-      if (!card) {
-        // Если карточка с заданным идентификатором не найдена
-        return res.status(404).send({
-          message: 'Карточка по данному id не найдена',
-        });
-      }
-
-      return res.send({ card, message: 'Лайк поставлен' });
+      res.status(StatusCodes.OK).send({ card, message: 'Лайк поставлен' });
     })
-    .catch(() => {
-      res.status(404).send({
-        message: 'Карточка по данному id не найдена',
-      });
+    .catch((err) => {
+      if (err instanceof mongoose.Error.CastError) {
+        next(new BadRequestError('Неверный формат id карточки'));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Карточка по указанному id не найдена'));
+      } else {
+        next(err);
+      }
     });
 };
 
 // eslint-disable-next-line consistent-return
-const dislikeCard = (req, res) => {
+const dislikeCard = (req, res, next) => {
   const { cardId } = req.params;
-  // Проверка на корректность формата идентификатора карточки
-  if (!mongoose.isValidObjectId(cardId)) {
-    return res.status(400).send({
-      message: 'Неверный формат id карточки',
-    });
-  }
   cardModel
     .findByIdAndUpdate(
       cardId,
       { $pull: { likes: req.user._id } }, // убрать _id из массива
       { new: true },
     )
+    .orFail()
     .populate(['owner', 'likes'])
     .then((card) => {
-      if (!card) {
-        // Если карточка с заданным идентификатором не найдена
-        return res.status(404).send({
-          message: 'Карточка по данному id не найдена',
-        });
-      }
-
-      return res.send({ card, message: 'Лайк удален' });
+      res.status(StatusCodes.OK).send({ card, message: 'Лайк удален' });
     })
-    .catch(() => {
-      res.status(404).send({
-        message: 'Карточка по данному id не найдена',
-      });
+    .catch((err) => {
+      if (err instanceof mongoose.Error.CastError) {
+        next(new BadRequestError('Неверный формат id карточки'));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Карточка по указанному id не найдена'));
+      } else {
+        next(err);
+      }
     });
 };
 

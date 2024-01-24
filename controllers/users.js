@@ -1,125 +1,99 @@
 const mongoose = require('mongoose');
+const {
+  StatusCodes,
+} = require('http-status-codes');
 const userModel = require('../models/user');
 
-const getUsers = (req, res) => {
+const BadRequestError = require('../errors/BadRequestError');
+const NotFoundError = require('../errors/NotFoundError');
+
+const getUsers = (req, res, next) => {
   userModel
     .find({})
     .then((users) => {
-      res.send(users);
+      res.status(StatusCodes.OK).send(users);
     })
-    .catch((err) => {
-      res.status(500).send({
-        message: 'На сервере произошла ошибка',
-        err: err.message,
-        stack: err.stack,
-      });
-    });
+    .catch(next);
 };
 
-// eslint-disable-next-line consistent-return
-const getUserById = (req, res) => {
+const getUserById = (req, res, next) => {
   const { userId } = req.params;
-
-  // Проверка на корректность формата идентификатора пользователя
-  if (!mongoose.isValidObjectId(userId)) {
-    return res.status(400).send({
-      message: 'Неверный формат id пользователя',
-    });
-  }
 
   userModel
     .findById(userId)
+    .orFail()
     .then((user) => {
-      if (!user) {
-        // Если пользователь с заданным идентификатором не найден
-        return res.status(404).send({
-          message: 'Пользователь по данному id не найден',
-        });
-      }
-
-      return res.send(user);
+      res.status(StatusCodes.OK).send(user);
     })
     .catch((err) => {
-      res.status(500).send({
-        message: 'На сервере произошла ошибка',
-        err: err.message,
-        stack: err.stack,
-      });
+      if (err instanceof mongoose.Error.CastError) {
+        next(new BadRequestError('Неверный формат id пользователя'));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Пользователь по указанному id не найден'));
+      } else {
+        next(err);
+      }
     });
 };
 
-const createUser = (req, res) => {
+const createUser = (req, res, next) => {
   const { name, about, avatar } = req.body;
   userModel
     .create({ name, about, avatar })
     .then((user) => {
-      res.status(201).send(user);
+      res.status(StatusCodes.CREATED).send(user);
     })
     .catch((err) => {
-      if (err.name === 'ValidationError' || err.name === 'CastError') {
-        res.status(400).send({ message: err.message });
+      // eslint-disable-next-line max-len
+      if (err instanceof mongoose.Error.CastError || err instanceof mongoose.Error.ValidationError) {
+        next(new BadRequestError(`Отправлены некорректные данные при создании пользователя: ${err.name}`));
       } else {
-        res.status(500).send({
-          message: 'На сервере произошла ошибка',
-          error: err.message,
-          stack: err.stack,
-        });
+        next(err);
       }
     });
 };
 
-const updateProfile = (req, res) => {
+const updateProfile = (req, res, next) => {
   const { name, about } = req.body;
-  if (req.user._id) {
-    userModel
-      .findByIdAndUpdate(req.user._id, { name, about }, { new: true, runValidators: true })
-      .then((user) => {
-        res.send(user);
-      })
-      .catch((err) => {
-        if (err.name === 'ValidationError') {
-          res.status(400).send({ message: err.message });
-        } else {
-          res.status(500).send({
-            message: 'На сервере произошла ошибка',
-            err: err.message,
-            stack: err.stack,
-          });
-        }
-      });
-  } else {
-    res.status(500).send({
-      message: 'На сервере произошла ошибка',
+
+  userModel
+    .findByIdAndUpdate(req.user._id, { name, about }, { new: true, runValidators: true })
+    .orFail()
+    .then((user) => {
+      res.status(StatusCodes.OK).send(user);
+    })
+    .catch((err) => {
+      // eslint-disable-next-line max-len
+      if (err instanceof mongoose.Error.CastError || err instanceof mongoose.Error.ValidationError) {
+        next(new BadRequestError(`Переданы некорректные данные при обновлении профиля: ${err.name}`));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Пользователь по указанному id не найден'));
+      } else {
+        next(err);
+      }
     });
-  }
 };
 
-const updateAvatar = (req, res) => {
+const updateAvatar = (req, res, next) => {
   const { avatar } = req.body;
-  if (req.user._id) {
-    userModel
-      .findByIdAndUpdate(req.user._id, { avatar }, { new: true, runValidators: true })
-      .then((user) => {
-        res.send(user);
-      })
-      .catch((err) => {
-        if (err.name === 'ValidationError') {
-          res.status(400).send({ message: err.message });
-        } else {
-          res.status(500).send({
-            message: 'На сервере произошла ошибка',
-            err: err.message,
-            stack: err.stack,
-          });
-        }
-      });
-  } else {
-    res.status(500).send({
-      message: 'На сервере произошла ошибка',
-    });
-  }
-};
 
+  userModel
+    .findByIdAndUpdate(req.user._id, { avatar }, { new: true, runValidators: true })
+    .orFail()
+    .then((user) => {
+      res.status(StatusCodes.OK).send(user);
+    })
+    .catch((err) => {
+      // eslint-disable-next-line max-len
+      if (err instanceof mongoose.Error.CastError || err instanceof mongoose.Error.ValidationError) {
+        next(new BadRequestError(`Переданы некорректные данные при обновлении аватара: ${err.name}`));
+      } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Пользователь по указанному id не найден'));
+      } else {
+        next(err);
+      }
+    });
+};
 
 module.exports = {
   getUsers,
