@@ -6,6 +6,7 @@ const cardModel = require('../models/card');
 
 const BadRequestError = require('../errors/BadRequestError');
 const NotFoundError = require('../errors/NotFoundError');
+const ForbiddenError = require('../errors/ForbiddenError');
 
 const getCards = (req, res, next) => {
   cardModel
@@ -50,11 +51,69 @@ const createCard = (req, res, next) => {
 };
 
 // eslint-disable-next-line consistent-return
+// const delCardById = (req, res, next) => {
+//   const { cardId } = req.params;
+//   cardModel
+//     .findByIdAndDelete(cardId)
+//     .orFail()
+//     .then(() => {
+//       res.status(StatusCodes.OK).send({
+//         message: 'Карточка успешно удалена',
+//       });
+//     })
+//     .catch((err) => {
+//       if (err instanceof mongoose.Error.CastError) {
+//         next(new BadRequestError('Неверный формат id карточки'));
+//       } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+//         next(new NotFoundError('Карточка по указанному id не найдена'));
+//       } else {
+//         next(err);
+//       }
+//     });
+// };
+
+// const delCardById = (req, res, next) => {
+//   const { cardId } = req.params;
+//   cardModel
+//     .findById(cardId)
+//     .then((card) => {
+//       if (!card) {
+//         throw new NotFoundError('Карточка по указанному id не найдена');
+//       }
+
+//       if (!card.owner.equals(req.user._id)) {
+//         throw new ForbiddenError('Попытка удалить чужую карточку');
+//       }
+
+//       return cardModel.deleteOne({ _id: cardId }); // Удаление карточки по id
+//     })
+//     .then(() => {
+//       res.status(StatusCodes.OK).send({
+//         message: 'Карточка успешно удалена',
+//       });
+//     })
+//     .catch((err) => {
+//       if (err instanceof mongoose.Error.CastError) {
+//         next(new BadRequestError('Неверный формат id карточки'));
+//       } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+//         next(new NotFoundError('Карточка по указанному id не найдена'));
+//       } else {
+//         next(err);
+//       }
+//     });
+// };
+
 const delCardById = (req, res, next) => {
   const { cardId } = req.params;
   cardModel
-    .findByIdAndDelete(cardId)
-    .orFail()
+    .findById(cardId)
+    .then((card) => {
+      if (!card.owner.equals(req.user._id)) {
+        throw new ForbiddenError('Попытка удалить чужую карточку');
+      }
+
+      return cardModel.deleteOne(card).orFail();
+    })
     .then(() => {
       res.status(StatusCodes.OK).send({
         message: 'Карточка успешно удалена',
@@ -64,6 +123,8 @@ const delCardById = (req, res, next) => {
       if (err instanceof mongoose.Error.CastError) {
         next(new BadRequestError('Неверный формат id карточки'));
       } else if (err instanceof mongoose.Error.DocumentNotFoundError) {
+        next(new NotFoundError('Карточка по указанному id не найдена'));
+      } else if (err.name === 'TypeError') {
         next(new NotFoundError('Карточка по указанному id не найдена'));
       } else {
         next(err);

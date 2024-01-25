@@ -1,10 +1,5 @@
 const { StatusCodes } = require('http-status-codes');
 
-// const statusCode = 500; // Internal Server Error
-// const errorName = StatusCodes[statusCode];
-
-// console.log(errorName);
-
 module.exports = (err, req, res, next) => {
   // Middleware для обработки ошибок
 

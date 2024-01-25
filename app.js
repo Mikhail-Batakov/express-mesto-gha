@@ -1,8 +1,9 @@
-/* eslint-disable no-unused-vars */
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
 const express = require('express');
 const mongoose = require('mongoose');
+const { errors } = require('celebrate');
+const { default: rateLimit } = require('express-rate-limit');
 const router = require('./routes');
 const errorHandler = require('./middlewares/errorHandler');
 
@@ -14,23 +15,22 @@ mongoose.connect(DB_URL, {
 });
 
 const app = express();
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // за 15 минут
+  max: 100, // можно совершить максимум 100 запросов с одного IP
+});
+
+app.use(limiter);
+
 app.use(helmet());
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-app.use((req, res, next) => {
-  req.user = {
-
-    _id: '65b013385a589bb8559d8837',
-
-  };
-
-  next();
-});
-
 app.use(router);
 
+app.use(errors());
 app.use(errorHandler);
 
 app.listen(PORT, () => {
