@@ -53,7 +53,7 @@ const createCard = (req, res, next) => {
 const delCardById = (req, res, next) => {
   const { cardId } = req.params;
   cardModel
-    .findById(cardId)
+    .findById(cardId).orFail()
     .then((card) => {
       if (!card.owner.equals(req.user._id)) {
         throw new ForbiddenError('Попытка удалить чужую карточку');
